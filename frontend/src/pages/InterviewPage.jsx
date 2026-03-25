@@ -6,69 +6,13 @@ export default function Interview() {
   const location = useLocation();
 
   // ✅ Get company/role/position from setup page
-  const { company, role, position } = location.state || {};
+  const { company, role, position, questions: preloadedQuestions } = location.state || {};
 
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const [answer, setAnswer] = useState("");
   const [allAnswers, setAllAnswers] = useState([]);
-
-  // ✅ Generate questions dynamically
-  const generateQuestions = (company, role, position) => {
-    let generated = [];
-
-    // Role-based questions
-    if (role === "Frontend Developer") {
-      generated = [
-        "Explain Virtual DOM in React.",
-        "What are React Hooks? Why are they used?",
-        "Explain the difference between props and state.",
-        "What is CORS and why does it happen?",
-        "How do you optimize a React application?"
-      ];
-    } else if (role === "Backend Developer") {
-      generated = [
-        "What is REST API?",
-        "Explain middleware in Express.js.",
-        "Difference between SQL and NoSQL databases?",
-        "How authentication works using JWT?",
-        "What is API rate limiting?"
-      ];
-    } else if (role === "Full Stack Developer") {
-      generated = [
-        "Explain MERN stack architecture.",
-        "How does frontend communicate with backend?",
-        "What is JWT authentication?",
-        "Explain CRUD operations.",
-        "How do you deploy a full stack application?"
-      ];
-    } else {
-      // Default general questions
-      generated = [
-        "Tell me about yourself.",
-        "What is your strongest skill?",
-        "Explain one project from your resume.",
-        "What are your future goals?",
-        "Why should we hire you?"
-      ];
-    }
-
-    // Company-based adjustment
-    if (company === "Amazon") {
-      generated[0] = "Tell me about a time you solved a difficult problem (STAR method).";
-    }
-
-    // Position-based adjustment
-    if (position === "Fresher" || position === "Intern") {
-      // keep easy questions
-      return generated;
-    } else {
-      // add slightly advanced question
-      generated[generated.length - 1] = "Explain how you handle system scalability and performance.";
-      return generated;
-    }
-  };
 
   useEffect(() => {
     if (!company || !role || !position) {
@@ -77,10 +21,28 @@ export default function Interview() {
       return;
     }
 
-    const q = generateQuestions(company, role, position);
-    setQuestions(q);
-    // eslint-disable-next-line
-  }, []);
+    // If questions were pre-generated (via resume), use them directly
+    if (preloadedQuestions && preloadedQuestions.length > 0) {
+      setQuestions(preloadedQuestions);
+      return;
+    }
+
+    // Otherwise fetch static questions
+    const fetchQuestions = async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/questions?company=${company}&role=${role}&position=${position}`
+        );
+        const data = await res.json();
+        setQuestions(data.questions);
+      } catch (error) {
+        console.error("Error loading questions:", error);
+        alert("Failed to load questions from server");
+      }
+    };
+
+    fetchQuestions();
+  }, [company, role, position, navigate, preloadedQuestions]);
 
   const handleSubmitAnswer = () => {
     if (!answer.trim()) {
@@ -88,8 +50,14 @@ export default function Interview() {
       return;
     }
 
+    // Handle both string questions (from AI) and object questions (from static API)
+    const currentQuestion = questions[currentIndex];
+    const questionText = typeof currentQuestion === "string" ? currentQuestion : currentQuestion?.question;
+    const idealAnswer = typeof currentQuestion === "string" ? "" : currentQuestion?.ideal || "";
+
     const newEntry = {
-      question: questions[currentIndex],
+      question: questionText,
+      ideal: idealAnswer,
       answer: answer.trim(),
     };
 
@@ -141,7 +109,11 @@ export default function Interview() {
 
         <div style={styles.questionBox}>
           <p style={styles.questionLabel}>Question:</p>
-          <p style={styles.questionText}>{questions[currentIndex]}</p>
+          <p style={styles.questionText}>
+            {typeof questions[currentIndex] === "string" 
+              ? questions[currentIndex] 
+              : questions[currentIndex]?.question}
+          </p>
         </div>
 
         <textarea

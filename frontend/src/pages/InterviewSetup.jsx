@@ -1,27 +1,63 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function InterviewSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Get resume file from upload page (if coming from resume flow)
+  const { resumeFile } = location.state || {};
 
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [position, setPosition] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!company || !role || !position) {
       alert("Please select Company, Role and Position ✅");
       return;
     }
 
-    // Later we will send this data to backend & generate questions
-    //alert(`Selected:\nCompany: ${company}\nRole: ${role}\nPosition: ${position}`);
+    setLoading(true);
 
-    // Next page (later): Interview page
-    // For now, just navigate to a dummy interview route
-    navigate("/interview", {
-    state: { company, role, position },
-  });
+    try {
+      // If resume file exists, use AI-generated questions
+      if (resumeFile) {
+        const formData = new FormData();
+        formData.append("resume", resumeFile);
+        formData.append("company", company);
+        formData.append("role", role);
+        formData.append("position", position);
+
+        const res = await fetch("http://localhost:5000/api/generate-questions", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+        if (res.ok && data.questions) {
+          navigate("/interview", {
+            state: { company, role, position, questions: data.questions },
+          });
+        } else {
+          throw new Error(data.error || "Failed to generate questions");
+        }
+      } else {
+        // Otherwise use static questions
+        navigate("/interview", {
+          state: { company, role, position },
+        });
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Failed to generate questions. Using defaults instead.");
+      navigate("/interview", {
+        state: { company, role, position },
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,8 +115,12 @@ export default function InterviewSetup() {
           </select>
         </div>
 
-        <button style={styles.button} onClick={handleStart}>
-          Start Mock Interview
+        <button 
+          style={{...styles.button, ...(loading ? styles.buttonDisabled : {})}} 
+          onClick={handleStart} 
+          disabled={loading}
+        >
+          {loading ? "Generating Questions..." : "Start Mock Interview"}
         </button>
 
         <button style={styles.backBtn} onClick={() => navigate("/upload")}>
@@ -160,6 +200,12 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
     marginTop: "10px",
+    opacity: 1,
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
   },
 
   backBtn: {

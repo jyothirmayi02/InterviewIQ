@@ -4,9 +4,41 @@ import { useLocation, useNavigate } from "react-router-dom";
 export default function Results() {
   const navigate = useNavigate();
   const location = useLocation();
-
+  
   const { company, role, position, answers } = location.state || {};
 
+  const [score, setScore] = React.useState(null);
+  const [feedback, setFeedback] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+  const [evaluations, setEvaluations] = React.useState([]);
+  
+  React.useEffect(() => {
+    const evaluate = async () => {
+      try {
+        const res = await fetch("http://localhost:5000/api/evaluate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ answers }),
+        });
+
+        const data = await res.json();
+        setScore(data.score);
+        setFeedback(data.feedback);
+        setEvaluations(data.evaluations || []);
+      } catch (err) {
+        console.error("Evaluation failed", err);
+        setFeedback("Failed to get evaluation from server.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (answers && answers.length > 0) {
+      evaluate();
+    }
+  }, [answers]);
   // ✅ If no results data found
   if (!answers || answers.length === 0) {
     return (
@@ -23,32 +55,7 @@ export default function Results() {
 
   // ✅ Simple overall score calculation (based on answer length)
   // (Later we will replace this with ML scoring)
-  const totalScore = answers.reduce((sum, item) => {
-    const len = item.answer.length;
-
-    // simple scoring out of 10
-    let score = 2;
-    if (len > 40) score = 5;
-    if (len > 80) score = 7;
-    if (len > 120) score = 9;
-
-    return sum + score;
-  }, 0);
-
-  const avgScore = Math.round(totalScore / answers.length);
-
-  // ✅ Overall Feedback based on avg score
-  let overallMessage = "";
-  if (avgScore >= 8) {
-    overallMessage = "Excellent ✅ You answered confidently and clearly.";
-  } else if (avgScore >= 5) {
-    overallMessage =
-      "Good 👍 Your answers are fine. Try adding more examples and technical details.";
-  } else {
-    overallMessage =
-      "Needs Improvement ⚠️ Please improve explanation, clarity, and confidence.";
-  }
-
+  
   return (
     <div style={styles.page}>
       <div style={styles.card}>
@@ -69,25 +76,53 @@ export default function Results() {
 
         {/* Overall Score */}
         <div style={styles.scoreBox}>
-          <h2 style={styles.scoreTitle}>Overall Score</h2>
-          <p style={styles.scoreValue}>{avgScore}/10</p>
-          <p style={styles.feedback}>{overallMessage}</p>
-        </div>
+  <h2 style={styles.scoreTitle}>Overall Score</h2>
+
+  {loading ? (
+    <p>Evaluating your answers...</p>
+  ) : (
+    <>
+      <p style={styles.scoreValue}>{score}/10</p>
+      <p style={styles.feedback}>{feedback}</p>
+    </>
+  )}
+</div>
 
         {/* Q&A Summary */}
-        <h3 style={styles.sectionTitle}>Your Answers</h3>
+        <h3 style={styles.sectionTitle}>Your Answers & Detailed Feedback</h3>
 
         <div style={styles.list}>
-          {answers.map((item, index) => (
-            <div key={index} style={styles.item}>
-              <p style={styles.q}>
-                <b>Q{index + 1}:</b> {item.question}
-              </p>
-              <p style={styles.a}>
-                <b>Your Answer:</b> {item.answer}
-              </p>
-            </div>
-          ))}
+          {answers.map((item, index) => {
+            const evalData = evaluations[index];
+            return (
+              <div key={index} style={styles.item}>
+                <p style={styles.q}>
+                  <b>Q{index + 1}:</b> {item.question}
+                </p>
+                <p style={styles.a}>
+                  <b>Your Answer:</b> {item.answer}
+                </p>
+                {evalData && evalData.score !== undefined && (
+                  <p style={styles.score}>
+                    <b>Score:</b> {evalData.score}/10
+                  </p>
+                )}
+                {evalData && evalData.detailedEvaluation && (
+                  <div style={styles.detailedEval}>
+                    <details>
+                      <summary style={styles.summary}>📋 View Detailed Evaluation</summary>
+                      <pre style={styles.evalText}>{evalData.detailedEvaluation}</pre>
+                    </details>
+                  </div>
+                )}
+                {evalData && evalData.feedback && !evalData.detailedEvaluation && (
+                  <p style={styles.feedbackText}>
+                    <b>Feedback:</b> {evalData.feedback}
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Buttons */}
@@ -208,6 +243,45 @@ const styles = {
     color: "#374151",
     fontSize: "14px",
     lineHeight: "1.5",
+  },
+
+  score: {
+    margin: "8px 0",
+    color: "#2563eb",
+    fontSize: "14px",
+    fontWeight: "bold",
+  },
+
+  detailedEval: {
+    marginTop: "10px",
+  },
+
+  summary: {
+    cursor: "pointer",
+    color: "#2563eb",
+    fontSize: "14px",
+    fontWeight: "bold",
+    marginBottom: "5px",
+  },
+
+  evalText: {
+    background: "#f9fafb",
+    padding: "10px",
+    borderRadius: "8px",
+    fontSize: "12px",
+    lineHeight: "1.4",
+    whiteSpace: "pre-wrap",
+    color: "#374151",
+    border: "1px solid #e5e7eb",
+    maxHeight: "400px",
+    overflowY: "auto",
+  },
+
+  feedbackText: {
+    marginTop: "8px",
+    color: "#059669",
+    fontSize: "14px",
+    fontStyle: "italic",
   },
 
   button: {

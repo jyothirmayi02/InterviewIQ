@@ -26,7 +26,8 @@ export default function ResumeUpload() {
       return;
     }
 
-    navigate("/setup");
+    // Pass resume file to setup page to generate AI questions
+    navigate("/setup", { state: { resumeFile } });
   };
 
   return (
