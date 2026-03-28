@@ -24,9 +24,9 @@ export default function Results() {
         });
 
         const data = await res.json();
-        setScore(data.score);
-        setFeedback(data.feedback);
-        setEvaluations(data.evaluations || []);
+        setScore(data.overallScore);
+        setFeedback(data.overallFeedback);
+        setEvaluations(data.results || []);
       } catch (err) {
         console.error("Evaluation failed", err);
         setFeedback("Failed to get evaluation from server.");
@@ -61,7 +61,7 @@ export default function Results() {
       <div style={styles.card}>
         <h1 style={styles.title}>Final Interview Report ✅</h1>
 
-        {/* Candidate Setup Info */}
+        {/*
         <div style={styles.infoBar}>
           <p style={styles.infoText}>
             <b>Company:</b> {company}
@@ -72,7 +72,7 @@ export default function Results() {
           <p style={styles.infoText}>
             <b>Position:</b> {position}
           </p>
-        </div>
+        </div>*/}
 
         {/* Overall Score */}
         <div style={styles.scoreBox}>
@@ -89,41 +89,86 @@ export default function Results() {
 </div>
 
         {/* Q&A Summary */}
-        <h3 style={styles.sectionTitle}>Your Answers & Detailed Feedback</h3>
+        <h3 style={styles.sectionTitle}>Detailed Question Review</h3>
 
         <div style={styles.list}>
           {answers.map((item, index) => {
-            const evalData = evaluations[index];
+            const evalData = evaluations.find(e => e.question === item.question) || {};
             return (
-              <div key={index} style={styles.item}>
-                <p style={styles.q}>
-                  <b>Q{index + 1}:</b> {item.question}
-                </p>
-                <p style={styles.a}>
-                  <b>Your Answer:</b> {item.answer}
-                </p>
-                {evalData && evalData.score !== undefined && (
-                  <p style={styles.score}>
-                    <b>Score:</b> {evalData.score}/10
-                  </p>
-                )}
-                {evalData && evalData.detailedEvaluation && (
-                  <div style={styles.detailedEval}>
-                    <details>
-                      <summary style={styles.summary}>📋 View Detailed Evaluation</summary>
-                      <pre style={styles.evalText}>{evalData.detailedEvaluation}</pre>
-                    </details>
+              <div key={index} style={styles.questionCard}>
+                <div style={styles.questionHeader}>
+                  <h4 style={styles.questionText}>Q{index + 1}: {item.question}</h4>
+                  <div style={styles.scoreBadge}>
+                    Score: {evalData.score || 0}/10
                   </div>
-                )}
-                {evalData && evalData.feedback && !evalData.detailedEvaluation && (
-                  <p style={styles.feedbackText}>
-                    <b>Feedback:</b> {evalData.feedback}
-                  </p>
+                </div>
+
+                <div style={styles.answerSection}>
+                  <div style={styles.userAnswer}>
+                    <h5 style={styles.sectionLabel}>Your Answer:</h5>
+                    <p style={styles.answerText}>{item.answer}</p>
+                  </div>
+
+                  <div style={styles.idealAnswer}>
+                    <h5 style={styles.sectionLabel}>Ideal Answer:</h5>
+                    <p style={styles.answerText}>{item.ideal || "Not available"}</p>
+                  </div>
+                </div>
+
+                {(evalData.feedback || evalData.detailedEvaluation) && (
+                  <div style={styles.feedbackSection}>
+                    <h5 style={styles.sectionLabel}>Feedback:</h5>
+                    {evalData.detailedEvaluation ? (
+                      <details style={styles.details}>
+                        <summary style={styles.summary}>📋 View Detailed Evaluation</summary>
+                        <pre style={styles.evalText}>{evalData.detailedEvaluation}</pre>
+                      </details>
+                    ) : (
+                      <p style={styles.feedbackText}>{evalData.feedback}</p>
+                    )}
+                  </div>
                 )}
               </div>
             );
           })}
         </div>
+
+        {/* Strengths and Weaknesses */}
+        {!loading && evaluations.length > 0 && (
+          <div style={styles.analysisSection}>
+            <div style={styles.strengthsCard}>
+              <h3 style={styles.analysisTitle}>💪 Strengths</h3>
+              <ul style={styles.analysisList}>
+                {evaluations
+                  .filter(e => e.score >= 7)
+                  .map((e, i) => (
+                    <li key={i} style={styles.analysisItem}>
+                      Strong performance on: "{e.question.substring(0, 50)}..."
+                    </li>
+                  ))}
+                {evaluations.filter(e => e.score >= 7).length === 0 && (
+                  <li style={styles.analysisItem}>Keep practicing to build strengths!</li>
+                )}
+              </ul>
+            </div>
+
+            <div style={styles.weaknessesCard}>
+              <h3 style={styles.analysisTitle}>🎯 Areas for Improvement</h3>
+              <ul style={styles.analysisList}>
+                {evaluations
+                  .filter(e => e.score < 7)
+                  .map((e, i) => (
+                    <li key={i} style={styles.analysisItem}>
+                      Focus on: "{e.question.substring(0, 50)}..." ({e.feedback || "Review ideal answer"})
+                    </li>
+                  ))}
+                {evaluations.filter(e => e.score < 7).length === 0 && (
+                  <li style={styles.analysisItem}>Great job! No major weaknesses identified.</li>
+                )}
+              </ul>
+            </div>
+          </div>
+        )}
 
         {/* Buttons */}
         <button style={styles.button} onClick={() => navigate("/")}>
@@ -150,140 +195,193 @@ const styles = {
     boxSizing: "border-box",
     fontFamily: "Arial, sans-serif",
   },
-
   card: {
     width: "100%",
     maxWidth: "900px",
     background: "#fff",
-    padding: "28px",
+    padding: "30px",
     borderRadius: "18px",
     boxShadow: "0px 10px 25px rgba(0,0,0,0.08)",
     boxSizing: "border-box",
   },
-
   title: {
-    textAlign: "center",
+    margin: "0 0 20px 0",
     fontSize: "28px",
-    marginBottom: "18px",
     color: "#111827",
+    textAlign: "center",
   },
-
   infoBar: {
     display: "flex",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
+    justifyContent: "space-around",
     gap: "10px",
+    flexWrap: "wrap",
     background: "#eff6ff",
-    padding: "14px",
-    borderRadius: "14px",
-    marginBottom: "18px",
+    padding: "15px",
+    borderRadius: "12px",
+    marginBottom: "25px",
+    fontSize: "14px",
+    color: "#1d4ed8",
   },
-
   infoText: {
     margin: 0,
-    color: "#1d4ed8",
-    fontSize: "14px",
+    fontWeight: "bold",
   },
-
   scoreBox: {
     textAlign: "center",
-    padding: "18px",
-    background: "#f0fdf4",
-    border: "1px solid #bbf7d0",
-    borderRadius: "16px",
-    marginBottom: "20px",
+    background: "#f0f9ff",
+    padding: "25px",
+    borderRadius: "14px",
+    marginBottom: "30px",
+    border: "2px solid #0ea5e9",
   },
-
   scoreTitle: {
-    margin: 0,
-    color: "#166534",
+    margin: "0 0 10px 0",
+    fontSize: "20px",
+    color: "#0f172a",
   },
-
   scoreValue: {
-    margin: "8px 0",
-    fontSize: "34px",
+    margin: "0 0 10px 0",
+    fontSize: "48px",
     fontWeight: "bold",
-    color: "#15803d",
+    color: "#0ea5e9",
   },
-
   feedback: {
     margin: 0,
-    color: "#166534",
-    fontSize: "14px",
-    lineHeight: "1.5",
+    fontSize: "16px",
+    color: "#374151",
   },
-
   sectionTitle: {
-    marginBottom: "12px",
+    margin: "30px 0 20px 0",
+    fontSize: "22px",
     color: "#111827",
+    borderBottom: "2px solid #e5e7eb",
+    paddingBottom: "10px",
   },
-
   list: {
     display: "flex",
     flexDirection: "column",
-    gap: "12px",
-    marginBottom: "20px",
+    gap: "20px",
+    marginBottom: "30px",
   },
-
-  item: {
-    padding: "14px",
+  questionCard: {
     background: "#f9fafb",
-    borderRadius: "14px",
     border: "1px solid #e5e7eb",
+    borderRadius: "12px",
+    padding: "20px",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
   },
-
-  q: {
-    margin: "0 0 8px 0",
-    color: "#111827",
-    fontSize: "14px",
+  questionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "15px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
-
-  a: {
+  questionText: {
     margin: 0,
+    fontSize: "18px",
+    color: "#111827",
+    flex: 1,
+  },
+  scoreBadge: {
+    background: "#10b981",
+    color: "#fff",
+    padding: "5px 12px",
+    borderRadius: "20px",
+    fontSize: "14px",
+    fontWeight: "bold",
+    whiteSpace: "nowrap",
+  },
+  answerSection: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "20px",
+    marginBottom: "15px",
+  },
+  userAnswer: {},
+  idealAnswer: {},
+  sectionLabel: {
+    margin: "0 0 8px 0",
+    fontSize: "16px",
     color: "#374151",
+    fontWeight: "bold",
+  },
+  answerText: {
+    margin: 0,
     fontSize: "14px",
+    color: "#4b5563",
     lineHeight: "1.5",
-  },
-
-  score: {
-    margin: "8px 0",
-    color: "#2563eb",
-    fontSize: "14px",
-    fontWeight: "bold",
-  },
-
-  detailedEval: {
-    marginTop: "10px",
-  },
-
-  summary: {
-    cursor: "pointer",
-    color: "#2563eb",
-    fontSize: "14px",
-    fontWeight: "bold",
-    marginBottom: "5px",
-  },
-
-  evalText: {
-    background: "#f9fafb",
+    background: "#fff",
     padding: "10px",
     borderRadius: "8px",
-    fontSize: "12px",
-    lineHeight: "1.4",
-    whiteSpace: "pre-wrap",
+    border: "1px solid #d1d5db",
+  },
+  feedbackSection: {
+    marginTop: "15px",
+  },
+  feedbackText: {
+    margin: 0,
+    fontSize: "14px",
+    color: "#dc2626",
+    background: "#fef2f2",
+    padding: "10px",
+    borderRadius: "8px",
+    border: "1px solid #fecaca",
+  },
+  details: {
+    marginTop: "10px",
+  },
+  summary: {
+    cursor: "pointer",
+    fontSize: "14px",
+    color: "#2563eb",
+    fontWeight: "bold",
+  },
+  evalText: {
+    fontSize: "13px",
     color: "#374151",
-    border: "1px solid #e5e7eb",
-    maxHeight: "400px",
+    whiteSpace: "pre-wrap",
+    background: "#f3f4f6",
+    padding: "15px",
+    borderRadius: "8px",
+    border: "1px solid #d1d5db",
+    maxHeight: "300px",
     overflowY: "auto",
   },
-
-  feedbackText: {
-    marginTop: "8px",
-    color: "#059669",
-    fontSize: "14px",
-    fontStyle: "italic",
+  analysisSection: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "20px",
+    marginBottom: "30px",
   },
-
+  strengthsCard: {
+    background: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    borderRadius: "12px",
+    padding: "20px",
+  },
+  weaknessesCard: {
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "12px",
+    padding: "20px",
+  },
+  analysisTitle: {
+    margin: "0 0 15px 0",
+    fontSize: "18px",
+    color: "#111827",
+  },
+  analysisList: {
+    margin: 0,
+    paddingLeft: "20px",
+  },
+  analysisItem: {
+    marginBottom: "8px",
+    fontSize: "14px",
+    color: "#374151",
+    lineHeight: "1.4",
+  },
   button: {
     width: "100%",
     padding: "14px",
@@ -294,18 +392,16 @@ const styles = {
     fontSize: "16px",
     cursor: "pointer",
     fontWeight: "bold",
-    marginBottom: "12px",
+    marginBottom: "10px",
   },
-
   secondaryButton: {
     width: "100%",
-    padding: "14px",
+    padding: "12px",
     borderRadius: "12px",
     border: "1px solid #d1d5db",
     background: "#fff",
     color: "#111827",
-    fontSize: "16px",
+    fontSize: "15px",
     cursor: "pointer",
-    fontWeight: "bold",
   },
 };

@@ -2,9 +2,14 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const pdfParse = require("pdf-parse");
-//const { GoogleGenerativeAI } = require("@google/generative-ai");
 const Groq = require("groq-sdk");
+const connectDB = require("./config/db");
+const Question = require("./models/Question");
+const Answer = require("./models/Answer");
 require("dotenv").config();
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
 
@@ -35,56 +40,66 @@ app.get("/api/questions", (req, res) => {
     questions = [
       {
         question: "Explain Virtual DOM in React.",
-        ideal:
+        ideal_answer:
           "Virtual DOM is a lightweight copy of the real DOM. React updates the virtual DOM first, compares differences and efficiently updates only changed parts in the real DOM to improve performance.",
+        category: "technical"
       },
       {
         question: "What are React Hooks?",
-        ideal:
+        ideal_answer:
           "React Hooks are functions like useState and useEffect that let functional components use state and lifecycle features without class components.",
+        category: "technical"
       },
       {
         question: "Difference between props and state?",
-        ideal:
+        ideal_answer:
           "Props are read-only inputs passed from parent to child, while state is local mutable data managed inside a component.",
+        category: "technical"
       },
       {
         question: "What is CORS?",
-        ideal:
+        ideal_answer:
           "CORS is a browser security mechanism that restricts cross origin HTTP requests unless the server allows them using specific headers.",
+        category: "technical"
       },
       {
         question: "How do you improve React performance?",
-        ideal:
+        ideal_answer:
           "By using memoization, React.memo, useMemo, useCallback, code splitting and avoiding unnecessary re-renders.",
+        category: "technical"
       },
     ];
   } else {
     questions = [
       {
         question: "Tell me about yourself.",
-        ideal:
+        ideal_answer:
           "A good answer briefly covers background, key skills, relevant projects and career goals in a structured and concise way.",
+        category: "greeting"
       },
       {
         question: "Explain one project you built.",
-        ideal:
+        ideal_answer:
           "Describe the problem, technologies used, your role, key features and the impact or result of the project.",
+        category: "project"
       },
       {
         question: "What are your strengths?",
-        ideal:
+        ideal_answer:
           "Mention technical strengths, problem solving ability, teamwork and continuous learning with examples.",
+        category: "behavioral"
       },
       {
         question: "How do you learn new technology?",
-        ideal:
+        ideal_answer:
           "By reading documentation, building small projects, following tutorials and practising consistently.",
+        category: "resume"
       },
       {
         question: "Why should we hire you?",
-        ideal:
+        ideal_answer:
           "Because your skills, projects, attitude and ability to learn quickly match the role requirements.",
+        category: "closing"
       },
     ];
   }
@@ -93,8 +108,9 @@ app.get("/api/questions", (req, res) => {
     questions[0] = {
       question:
         "Tell me about a time you solved a difficult problem (STAR method).",
-      ideal:
+      ideal_answer:
         "A structured STAR answer describing Situation, Task, Action and Result showing ownership and problem solving.",
+      category: "behavioral"
     };
   }
 
@@ -106,287 +122,193 @@ app.post("/api/evaluate", async (req, res) => {
   const { answers } = req.body;
 
   if (!answers || answers.length === 0) {
-    return res.json({ score: 0, feedback: "No answers submitted." });
+    return res.json({
+      overallScore: 0,
+      overallFeedback: "No answers submitted.",
+      results: [],
+    });
   }
 
-  // If no API key, use simple scoring
-  if (!process.env.GROQ_API_KEY) {
-    console.warn("⚠️  No GROQ_API_KEY for detailed evaluation -- using simple scoring");
-    return simpleEvaluation(answers, res);
-  }
-
-  // Use AI for detailed evaluation
-  await detailedEvaluation(answers, res);
+  return simpleEvaluation(answers, res);
 });
 
-async function detailedEvaluation(answers, res) {
-  try {
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-    let totalScore = 0;
-    let validCount = 0;
-    const evaluations = [];
-
-    for (const item of answers) {
-      if (!item || !item.answer) continue;
-
-      const question = item.question || "General question";
-      const candidateAnswer = item.answer.trim();
-
-      // If no ideal answer, create a generic one or skip detailed eval
-      const idealAnswer = item.ideal || "A comprehensive answer demonstrating technical knowledge and clear explanation.";
-
-      const prompt = `
-You are an expert technical interviewer for a platform called "Interview IQ".
-
-Your task is to evaluate a candidate's answer to an interview question and help them improve by comparing it with an ideal answer.
-
-Follow this exact structured format in your response:
-
----
-
-### 1. Question
-
-Display the given interview question.
-
-### 2. Candidate Answer
-
-Display the candidate's answer exactly as provided.
-
-### 3. Ideal Answer
-
-Write a clear, concise, and technically correct ideal answer that a strong candidate would give in an interview.
-
----
-
-### 4. Evaluation
-
-**Accuracy:** (Correct / Partially Correct / Incorrect)
-**Completeness:** (What important points are missing or covered)
-**Clarity:** (How well the answer is structured and explained)
-
----
-
-### 5. Score (Out of 10)
-
-* Technical Accuracy: /5
-* Explanation Quality: /3
-* Completeness: /2
-
-**Total Score: /10**
-
----
-
-### 6. Feedback
-
-Provide constructive feedback including:
-
-* What the candidate did well
-* What needs improvement
-* Specific suggestions to improve the answer
-
----
-
-### 7. Improved Answer
-
-Rewrite the candidate's answer into a better and more complete version based on their attempt.
-
----
-
-### 8. 📘 Learn from the Ideal Answer
-
-Display the ideal answer again so the candidate can study and learn from it.
-
----
-
-### Important Instructions:
-
-* Keep the tone professional, supportive, and encouraging.
-* Do not discourage the candidate even if the answer is wrong.
-* Keep explanations simple and easy to understand.
-* Always include all sections, even if the candidate answer is weak or empty.
-* Do not skip the Ideal Answer—it is mandatory.
-
----
-
-### Input Format:
-
-Question: ${question}
-Candidate Answer: ${candidateAnswer}
-Ideal Answer: ${idealAnswer}
-`;
-
-      // Try models for evaluation
-      let evaluationText = null;
-      for (const model of ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "openai/gpt-oss-20b", "openai/gpt-oss-120b"]) {
-        try {
-          const completion = await groq.chat.completions.create({
-            model,
-            messages: [{ role: "user", content: prompt }],
-          });
-          evaluationText = completion.choices?.[0]?.message?.content;
-          if (evaluationText) break;
-        } catch (err) {
-          console.warn(`Model ${model} failed for evaluation:`, err.message);
-        }
-      }
-
-      if (!evaluationText) {
-        // Fallback to simple scoring for this item
-        const score = candidateAnswer.length > 50 ? 7 : 5;
-        evaluations.push({
-          question,
-          answer: candidateAnswer,
-          score,
-          feedback: "Detailed evaluation unavailable. Basic score based on answer length.",
-        });
-        totalScore += score;
-        validCount++;
-        continue;
-      }
-
-      // Extract score from evaluation text (look for "Total Score: X/10")
-      const scoreMatch = evaluationText.match(/Total Score:\s*(\d+)\/10/);
-      const score = scoreMatch ? parseInt(scoreMatch[1]) : 5;
-
-      evaluations.push({
-        question,
-        answer: candidateAnswer,
-        score,
-        detailedEvaluation: evaluationText,
-      });
-
-      totalScore += score;
-      validCount++;
-    }
-
-    if (validCount === 0) {
-      return res.json({ score: 0, feedback: "Answers are invalid or missing." });
-    }
-
-    const avgScore = Math.round(totalScore / validCount);
-
-    res.json({
-      score: avgScore,
-      feedback: `Average score: ${avgScore}/10 based on detailed AI evaluation.`,
-      evaluations, // Include detailed evaluations for each question
-    });
-
-  } catch (error) {
-    console.error("❌ Detailed evaluation failed:", error.message);
-    // Fallback to simple evaluation
-    return simpleEvaluation(answers, res);
-  }
-}
-
-function simpleEvaluation(answers, res) {
-  function similarity(a, b) {
-    if (typeof a !== "string" || typeof b !== "string") return 0;
-    const aw = a.toLowerCase().split(/\W+/);
-    const bw = b.toLowerCase().split(/\W+/);
-    const common = aw.filter((w) => bw.includes(w));
-    return bw.length ? common.length / new Set(bw).size : 0;
+async function simpleEvaluation(answers, res) {
+  function preprocessText(text) {
+    if (!text || typeof text !== "string") return [];
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, "")
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
   }
 
-  let total = 0;
+  function calculateRelevance(answerWords, idealWords) {
+    const answerSet = new Set(answerWords);
+    const idealSet = new Set(idealWords);
+    const intersection = new Set([...answerSet].filter((x) => idealSet.has(x)));
+    const union = new Set([...answerSet, ...idealSet]);
+    return union.size ? intersection.size / union.size : 0;
+  }
+
+  function extractKeywords(words) {
+    const commonWords = new Set([
+      "the","and","or","but","in","on","at","to","for","of","with","by",
+      "an","a","is","are","was","were","be","been","being","have","has",
+      "had","do","does","did","will","would","could","should","can"
+    ]);
+    return words.filter((word) => word.length > 3 && !commonWords.has(word));
+  }
+
+  function calculateKeywordCoverage(answerWords, keywords) {
+    if (keywords.length === 0) return 1;
+    const answerSet = new Set(answerWords);
+    const covered = keywords.filter((k) => answerSet.has(k));
+    return covered.length / keywords.length;
+  }
+
+  function calculateLengthScore(wordCount) {
+    if (wordCount < 10) return 2;
+    if (wordCount < 30) return 5;
+    if (wordCount < 100) return 8;
+    return 10;
+  }
+
+  function evaluateWithIdeal(question, answer, idealAnswer) {
+    const answerWords = preprocessText(answer);
+    const idealWords = preprocessText(idealAnswer);
+    const wordCount = answerWords.length;
+
+    if (wordCount === 0) {
+      return { score: 0, feedback: "No answer provided", hasIdeal: true };
+    }
+
+    const relevance = calculateRelevance(answerWords, idealWords);
+    const lengthScore = calculateLengthScore(wordCount);
+    const keywords = extractKeywords(idealWords);
+    const keywordCoverage = calculateKeywordCoverage(answerWords, keywords);
+
+    // ✅ FIXED SCORING (NO overflow)
+    const score = Math.round(
+      (relevance * 4) +
+      (lengthScore * 0.3) +
+      (keywordCoverage * 3)
+    );
+
+    let feedback = [];
+    if (lengthScore < 5) feedback.push("Answer is too short");
+    if (relevance < 0.3) feedback.push("Missing important concepts");
+    if (keywordCoverage < 0.5) feedback.push("Include more key terms");
+    if (feedback.length === 0) feedback.push("Good answer");
+
+    return { score: Math.min(10, score), feedback: feedback.join("; "), hasIdeal: true };
+  }
+
+  function evaluateWithoutIdeal(question, answer) {
+    const answerWords = preprocessText(answer);
+    const wordCount = answerWords.length;
+
+    if (wordCount === 0) {
+      return { score: 0, feedback: "No answer provided", hasIdeal: false };
+    }
+
+    const lengthScore = calculateLengthScore(wordCount);
+    const questionWords = preprocessText(question);
+    const questionKeywords = extractKeywords(questionWords);
+    const keywordCoverage = calculateKeywordCoverage(answerWords, questionKeywords);
+
+    const score = Math.round(
+      (lengthScore * 0.7) +
+      (keywordCoverage * 3)
+    );
+
+    let feedback = [];
+    if (lengthScore < 5) feedback.push("Answer is too short");
+    if (keywordCoverage < 0.3) feedback.push("Address the question more clearly");
+    if (feedback.length === 0) feedback.push("Good attempt");
+
+    return { score: Math.min(10, score), feedback: feedback.join("; "), hasIdeal: false };
+  }
+
+  const results = [];
+  let totalScore = 0;
   let validCount = 0;
 
-  answers.forEach((item) => {
-    if (!item || !item.answer) return;
+  for (const item of answers) {
+    if (!item || !item.question || !item.answer) continue;
 
-    let score;
-    if (item.ideal && item.ideal.trim().length > 0) {
-      const sim = similarity(item.answer, item.ideal);
-      score = Math.round(sim * 10);
+    const question = item.question.trim();
+    const answer = item.answer.trim();
+    const idealAnswer = (item.ideal || item.ideal_answer || item.idealAnswer || "").trim();
+
+    let evaluation;
+    if (idealAnswer) {
+      evaluation = evaluateWithIdeal(question, answer, idealAnswer);
     } else {
-      const answerLength = item.answer.trim().length;
-      if (answerLength < 10) score = 2;
-      else if (answerLength < 50) score = 5;
-      else if (answerLength < 150) score = 7;
-      else score = 9;
+      evaluation = evaluateWithoutIdeal(question, answer);
     }
 
-    total += score;
-    validCount += 1;
-  });
-
-  if (validCount === 0) {
-    return res.json({ score: 0, feedback: "Answers are invalid or missing." });
-  }
-
-  const avgScore = Math.round(total / validCount);
-
-  let message;
-  if (avgScore >= 8) {
-    message = "Excellent answers! You provided thoughtful and detailed responses.";
-  } else if (avgScore >= 6) {
-    message = "Good answers! You covered most topics well.";
-  } else if (avgScore >= 4) {
-    message = "Fair answers. Try to provide more detail and thought next time.";
-  } else {
-    message = "Answers need improvement. Provide more comprehensive responses.";
-  }
-
-  res.json({ score: avgScore, feedback: message });
-}
-
-// Debug endpoint: Test skill extraction from resume
-app.post("/api/test-skills", upload.single("resume"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-
-    console.log("🔍 Testing skill extraction...");
-
-    // Parse PDF
-    let resumeText = "";
-    try {
-      const data = await pdfParse(req.file.buffer);
-      resumeText = data.text;
-    } catch (pdfError) {
-      return res.status(400).json({ error: "Failed to parse PDF" });
-    }
-
-    // Clean text
-    resumeText = resumeText
-      .substring(0, 3000)
-      .replace(/\s+/g, " ")
-      .replace(/\n+/g, "\n")
-      .trim();
-
-    console.log("📝 Resume text:", resumeText.substring(0, 200) + "...");
-
-    // Extract skills - keyword matching
-    const skillKeywords = [
-      "javascript", "python", "java", "react", "node.js", "express.js", "mongodb", "sql",
-      "html", "css", "typescript", "angular", "vue", "aws", "docker", "kubernetes",
-      "git", "linux", "rest api", "graphql", "mysql", "postgresql", "firebase",
-      "c++", "c#", "php", "ruby", "go", "rust", "swift", "kotlin"
-    ];
-    
-    const resumeLower = resumeText.toLowerCase();
-    const foundSkills = skillKeywords.filter(skill => resumeLower.includes(skill));
-
-    console.log("✅ Found skills:", foundSkills);
-
-    res.json({
-      message: "Skill extraction test",
-      resumePreview: resumeText.substring(0, 300) + "...",
-      totalResumeLength: resumeText.length,
-      foundSkills: foundSkills,
-      skillCount: foundSkills.length,
-      debug: {
-        availableKeywords: skillKeywords.length,
-        keywordsChecked: skillKeywords
-      }
+    results.push({
+      question,
+      answer,
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+      hasIdeal: evaluation.hasIdeal,
     });
 
-  } catch (error) {
-    console.error("❌ Error:", error.message);
-    res.status(500).json({ error: error.message });
+    totalScore += evaluation.score;
+    validCount++;
   }
-});
+
+  const overallScore = validCount > 0 ? Math.round(totalScore / validCount) : 0;
+
+  let overallFeedback;
+  if (overallScore >= 8) overallFeedback = "Excellent performance";
+  else if (overallScore >= 5) overallFeedback = "Good but needs improvement";
+  else if (overallScore >= 3) overallFeedback = "Average understanding";
+  else overallFeedback = "Needs significant improvement";
+
+  return res.json({
+    overallScore,
+    overallFeedback,
+    results,
+  });
+
+
+  // Save answers to database
+  try {
+    const answerDocuments = [];
+    for (const item of answers) {
+      const evaluation = results.find(r => r.question === item.question);
+
+      if (item && item.answer && evaluation) {
+        let questionId = null;
+        if (item.questionId) {
+          questionId = item.questionId;
+        } else {
+          const questionDoc = await Question.findOne({ question: item.question });
+          if (questionDoc) {
+            questionId = questionDoc._id;
+          }
+        }
+
+        if (questionId) {
+          answerDocuments.push({
+            questionId: questionId,
+            userAnswer: item.answer,
+            score: evaluation.score,
+            feedback: evaluation.feedback
+          });
+        }
+      }
+    }
+    if (answerDocuments.length > 0) {
+      const savedAnswers = await Answer.insertMany(answerDocuments);
+      console.log(`💾 Saved ${savedAnswers.length} answers to database`);
+    }
+  } catch (dbError) {
+    console.error("❌ Error saving answers to database:", dbError.message);
+  }
+}
 
 // Generate AI-based interview questions from resume
 app.post("/api/generate-questions", upload.single("resume"), async (req, res) => {
@@ -443,36 +365,31 @@ CANDIDATE DETAILS:
 - Role: ${role}
 - Position Level: ${position}
 
-GENERATE EXACTLY 15-20 interview questions, organized into categories. Each question should be on a NEW LINE and numbered.
+Generate exactly 15 interview questions with ideal answers in the following JSON format:
 
-**CATEGORY 1: GREETING (2 questions)**
-Ask warmup questions to make candidate comfortable.
+[
+  {
+    "question": "Question text here",
+    "ideal_answer": "Ideal answer text here",
+    "category": "category_name"
+  }
+]
 
-**CATEGORY 2: RESUME-BASED (3-4 questions)**
-Ask specific questions about their resume, work experience, and skills.
-
-**CATEGORY 3: TECHNICAL (4-5 questions)**
-Ask technical questions specific to the ${role} role.
-
-**CATEGORY 4: PROJECT-BASED (3-4 questions)**
-Ask about specific projects they built or worked on.
-
-**CATEGORY 5: BEHAVIORAL (2-3 questions)**
-Ask STAR-method behavioral questions about challenges and conflict resolution.
-
-**CATEGORY 6: COMPANY-SPECIFIC (2-3 questions)**
-Ask questions specific to ${company} and why they want to work there.
-
-**CATEGORY 7: CLOSING (1-2 questions)**
-Ask closing questions and allow candidate to ask questions.
+Categories and counts:
+- greeting: 2 questions
+- resume: 2 questions
+- technical: 3 questions
+- project: 3 questions
+- behavioral: 2 questions
+- company: 2 questions
+- closing: 1 question
 
 RULES:
-- Each question on a NEW line
-- Exactly ONE question per line
-- NO numbering like "1." at start (just the question)
-- Questions must be clear, specific, and professional
-- NO answers or explanations
-- ONLY QUESTIONS`;
+- Return ONLY valid JSON array
+- No explanations, no numbering, no additional text
+- Each question must be unique and professional
+- Ideal answers should be concise but comprehensive
+- Categories must be exactly one of: greeting, resume, technical, project, behavioral, company, closing`;
 
     console.log("🤖 Preparing to generate AI questions...");
 
@@ -536,62 +453,234 @@ RULES:
 
     console.log(`✅ AI response received from model: ${usedModel}`);
 
-    // Parse questions: split by newline, clean up, validate
-    let questions = responseText
-      .split('\n')
-      .map(line => line
-        .replace(/^[\d\.]+(\.|\)|\s)+/, '') // Remove numbering (1., 1), 1  etc)
-        .replace(/^\*\*[A-Z\s]+\*\*/, '')   // Remove category headers
-        .replace(/^[-*]\s+/, '')             // Remove bullet points
-        .trim()
-      )
-      .filter(q => {
-        // Must be non-empty and at least some length
-        if (!q || q.length < 8) return false;
-        // Should look like a question (end with ?, or be command-like)
-        if (!q.includes('?') && !q.match(/^(describe|explain|tell|how|why|what|when|where|which)/i)) return false;
-        // Filter out category headers and metadata
-        if (q.match(/^(CATEGORY|RULE|RESUME|COMPANY|CLOSING|TECHNICAL|BEHAVIORAL|GREETING|PROJECT|QUESTION)/i)) return false;
-        // Filter out very long fragments (likely parsing errors)
-        if (q.length > 250) return false;
-        // Filter out common AI junk
-        if (q.includes('**') || q.includes('--') || q.match(/^(Example|Answer|Note|Tip)/i)) return false;
-        return true;
-      });
+    // Parse AI response as JSON
+    let questions = [];
+    try {
+      const parsed = JSON.parse(responseText.trim());
+      if (Array.isArray(parsed)) {
+        // Validate each item has required fields
+        questions = parsed.filter(item => 
+          item && 
+          typeof item.question === 'string' && 
+          typeof item.ideal_answer === 'string' && 
+          typeof item.category === 'string' &&
+          ['greeting', 'resume', 'technical', 'project', 'behavioral', 'company', 'closing'].includes(item.category)
+        );
+      }
+    } catch (parseError) {
+      console.warn("❌ Failed to parse AI response as JSON:", parseError.message);
+      console.log("Raw response:", responseText.substring(0, 200) + "...");
+    }
 
-    // Remove duplicates (case-insensitive)
-    const seen = new Set();
-    questions = questions.filter(q => {
-      const normalized = q.toLowerCase().trim();
-      if (seen.has(normalized)) return false;
-      seen.add(normalized);
-      return true;
-    });
+    // Ensure we have questions, fallback if empty
+    if (questions.length === 0) {
+      console.log("🔄 Using fallback questions due to parsing failure or empty response");
+      questions = [
+        {
+          question: "Tell me about your technical background and key skills.",
+          ideal_answer: "A good answer should highlight relevant experience, technologies mastered, and how they apply to the role.",
+          category: "greeting"
+        },
+        {
+          question: "Describe a challenging project you worked on and how you solved it.",
+          ideal_answer: "Describe the problem, your approach, technologies used, and the successful outcome.",
+          category: "resume"
+        },
+        {
+          question: "What programming languages and frameworks are you most comfortable with?",
+          ideal_answer: "List key languages/frameworks with examples of projects or applications built using them.",
+          category: "technical"
+        },
+        {
+          question: "How do you approach debugging and problem-solving?",
+          ideal_answer: "Explain systematic debugging steps, tools used, and learning from issues.",
+          category: "technical"
+        },
+        {
+          question: "Why are you interested in this role and company?",
+          ideal_answer: "Connect your skills and career goals with the company's mission and role requirements.",
+          category: "company"
+        }
+      ];
+    }
 
-    // Ensure we have 15-20 questions
-    if (questions.length < 15 && questions.length > 0) {
-      console.log(`⚠️  Only ${questions.length} questions generated but expected 15-20`);
-    } else if (questions.length > 20) {
-      questions = questions.slice(0, 20);
-      console.log("✂️  Trimmed to 20 questions");
+    // Ensure we have exactly 15 questions if possible, but don't pad beyond available
+    if (questions.length > 15) {
+      questions = questions.slice(0, 15);
+      console.log("✂️  Trimmed to 15 questions");
     }
 
     console.log(`✅ Questions generated successfully: ${questions.length} questions`);
-    res.json({ questions });
+
+    // Save questions to database
+    try {
+      const savedQuestions = [];
+
+      for (let index = 0; index < questions.length; index++) {
+        const q = questions[index];
+        const orderIndex = index + 1; // Start from 1-20
+
+        // Check if question already exists (avoid duplicates)
+        const existingQuestion = await Question.findOne({ question: q.question });
+
+        if (existingQuestion) {
+          console.log(`⚠️  Question already exists: "${q.question.substring(0, 40)}..."`);
+          savedQuestions.push({
+            _id: existingQuestion._id,
+            question: existingQuestion.question,
+            ideal_answer: existingQuestion.idealAnswer,
+            category: existingQuestion.category,
+            orderIndex: existingQuestion.orderIndex
+          });
+          continue;
+        }
+
+        // Create new question with all required fields
+        const newQuestion = new Question({
+          question: q.question,
+          idealAnswer: q.ideal_answer,
+          role: role || null,
+          company: company || null,
+          position: position || null,
+          category: q.category,
+          orderIndex: orderIndex
+        });
+
+        // Save to MongoDB
+        const savedQuestion = await newQuestion.save();
+        console.log(`✅ Saved question ${orderIndex}: "${q.question.substring(0, 40)}..."`);
+
+        savedQuestions.push({
+          _id: savedQuestion._id,
+          question: savedQuestion.question,
+          ideal_answer: savedQuestion.idealAnswer,
+          category: savedQuestion.category,
+          orderIndex: savedQuestion.orderIndex
+        });
+      }
+
+      console.log(`💾 Saved ${savedQuestions.length} questions to database`);
+      res.json({ questions: savedQuestions });
+    } catch (dbError) {
+      console.error("❌ Error saving questions to database:", dbError.message);
+      // Still return questions even if saving fails
+      res.json({ questions });
+    }
   } catch (error) {
     console.error("❌ Error generating questions:", error.message);
 
-    // Fallback: return static questions
+    // Fallback: return static questions with ideal answers
     const fallbackQuestions = [
-      "Tell me about your technical background and key skills.",
-      "Describe a challenging project you worked on and how you solved it.",
-      "What programming languages and frameworks are you most comfortable with?",
-      "How do you approach debugging and problem-solving?",
-      "Why are you interested in this role and company?",
+      {
+        question: "Tell me about your technical background and key skills.",
+        ideal_answer: "A good answer should highlight relevant experience, technologies mastered, and how they apply to the role.",
+        category: "greeting"
+      },
+      {
+        question: "Describe a challenging project you worked on and how you solved it.",
+        ideal_answer: "Describe the problem, your approach, technologies used, and the successful outcome.",
+        category: "resume"
+      },
+      {
+        question: "What programming languages and frameworks are you most comfortable with?",
+        ideal_answer: "List key languages/frameworks with examples of projects or applications built using them.",
+        category: "technical"
+      },
+      {
+        question: "How do you approach debugging and problem-solving?",
+        ideal_answer: "Explain systematic debugging steps, tools used, and learning from issues.",
+        category: "technical"
+      },
+      {
+        question: "Why are you interested in this role and company?",
+        ideal_answer: "Connect your skills and career goals with the company's mission and role requirements.",
+        category: "company"
+      }
     ];
 
     console.log("🔄 Returning fallback questions");
     res.json({ questions: fallbackQuestions });
+  }
+});
+
+// Get all questions with optional filters
+app.get("/api/questions", async (req, res) => {
+  try {
+    const { company, role, category, limit = 50, skip = 0 } = req.query;
+
+    const filter = {};
+    if (company) filter.company = company;
+    if (role) filter.role = role;
+    if (category) filter.category = category;
+
+    const questions = await Question.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip));
+
+    const formattedQuestions = questions.map(q => ({
+      _id: q._id,
+      question: q.question,
+      ideal_answer: q.idealAnswer,
+      category: q.category,
+      role: q.role,
+      company: q.company,
+      position: q.position,
+      orderIndex: q.orderIndex,
+      createdAt: q.createdAt
+    }));
+
+    res.json({ questions: formattedQuestions });
+  } catch (error) {
+    console.error("❌ Error fetching questions:", error.message);
+    res.status(500).json({ error: "Failed to fetch questions" });
+  }
+});
+
+// Get a specific question by ID
+app.get("/api/questions/:id", async (req, res) => {
+  try {
+    const question = await Question.findById(req.params.id);
+
+    if (!question) {
+      return res.status(404).json({ error: "Question not found" });
+    }
+
+    res.json({
+      _id: question._id,
+      question: question.question,
+      ideal_answer: question.idealAnswer,
+      category: question.category,
+      role: question.role,
+      company: question.company,
+      position: question.position,
+      orderIndex: question.orderIndex,
+      createdAt: question.createdAt
+    });
+  } catch (error) {
+    console.error("❌ Error fetching question:", error.message);
+    res.status(500).json({ error: "Failed to fetch question" });
+  }
+});
+
+// Get all answers with optional filters
+app.get("/api/answers", async (req, res) => {
+  try {
+    const { questionId, limit = 50, skip = 0 } = req.query;
+
+    const filter = {};
+    if (questionId) filter.questionId = questionId;
+
+    const answers = await Answer.find(filter)
+      .populate('questionId', 'question category')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip));
+
+    res.json({ answers });
+  } catch (error) {
+    console.error("❌ Error fetching answers:", error.message);
+    res.status(500).json({ error: "Failed to fetch answers" });
   }
 });
 

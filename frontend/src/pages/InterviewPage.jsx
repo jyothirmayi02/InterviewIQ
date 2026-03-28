@@ -14,6 +14,18 @@ export default function Interview() {
   const [answer, setAnswer] = useState("");
   const [allAnswers, setAllAnswers] = useState([]);
 
+  const normalizeQuestion = (item) => {
+    if (!item) return null;
+    if (typeof item === "string") {
+      return { question: item, idealAnswer: "" };
+    }
+    return {
+      question: item.question || "",
+      idealAnswer: item.idealAnswer || item.ideal || item.ideal_answer || "",
+      category: item.category || "",
+    };
+  };
+
   useEffect(() => {
     if (!company || !role || !position) {
       alert("Setup data missing! Please start again ✅");
@@ -21,20 +33,21 @@ export default function Interview() {
       return;
     }
 
-    // If questions were pre-generated (via resume), use them directly
+    // If questions were pre-generated (via resume), normalize them
     if (preloadedQuestions && preloadedQuestions.length > 0) {
-      setQuestions(preloadedQuestions);
+      setQuestions(preloadedQuestions.map(normalizeQuestion).filter(Boolean));
       return;
     }
 
-    // Otherwise fetch static questions
+    // Otherwise fetch questions from backend
     const fetchQuestions = async () => {
       try {
         const res = await fetch(
           `http://localhost:5000/api/questions?company=${company}&role=${role}&position=${position}`
         );
         const data = await res.json();
-        setQuestions(data.questions);
+        const normalized = (data.questions || []).map(normalizeQuestion).filter(Boolean);
+        setQuestions(normalized);
       } catch (error) {
         console.error("Error loading questions:", error);
         alert("Failed to load questions from server");
@@ -50,10 +63,18 @@ export default function Interview() {
       return;
     }
 
-    // Handle both string questions (from AI) and object questions (from static API)
     const currentQuestion = questions[currentIndex];
-    const questionText = typeof currentQuestion === "string" ? currentQuestion : currentQuestion?.question;
-    const idealAnswer = typeof currentQuestion === "string" ? "" : currentQuestion?.ideal || "";
+    const questionText = currentQuestion?.question || "";
+    const idealAnswer = currentQuestion?.idealAnswer || "";
+
+    if (!questionText) {
+      alert("Current question is missing. Please restart the interview.");
+      return;
+    }
+
+    if (!idealAnswer) {
+      console.warn("Ideal answer missing for question:", questionText);
+    }
 
     const newEntry = {
       question: questionText,
@@ -65,14 +86,10 @@ export default function Interview() {
     setAllAnswers(updatedAnswers);
     setAnswer("");
 
-    // Next question
-    if (currentIndex === questions.length - 1) {
-      // ✅ Interview completed → go to results page
+    // Next question or finish
+    if (currentIndex >= questions.length - 1) {
       navigate("/results", {
         state: {
-          company,
-          role,
-          position,
           answers: updatedAnswers,
         },
       });
@@ -109,11 +126,7 @@ export default function Interview() {
 
         <div style={styles.questionBox}>
           <p style={styles.questionLabel}>Question:</p>
-          <p style={styles.questionText}>
-            {typeof questions[currentIndex] === "string" 
-              ? questions[currentIndex] 
-              : questions[currentIndex]?.question}
-          </p>
+          <p style={styles.questionText}>{questions[currentIndex]?.question || "(Question text unavailable)"}</p>
         </div>
 
         <textarea
