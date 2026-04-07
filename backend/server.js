@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
+const storage = multer.memoryStorage();
 const pdfParse = require("pdf-parse");
 const Groq = require("groq-sdk");
 const connectDB = require("./config/db");
@@ -15,10 +16,12 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // Multer configuration - store files in memory
-const upload = multer({ storage: multer.memoryStorage() });
+//const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Test Route
 app.get("/", (req, res) => {
@@ -152,9 +155,9 @@ async function simpleEvaluation(answers, res) {
 
   function extractKeywords(words) {
     const commonWords = new Set([
-      "the","and","or","but","in","on","at","to","for","of","with","by",
-      "an","a","is","are","was","were","be","been","being","have","has",
-      "had","do","does","did","will","would","could","should","can"
+      "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+      "an", "a", "is", "are", "was", "were", "be", "been", "being", "have", "has",
+      "had", "do", "does", "did", "will", "would", "could", "should", "can"
     ]);
     return words.filter((word) => word.length > 3 && !commonWords.has(word));
   }
@@ -312,15 +315,44 @@ async function simpleEvaluation(answers, res) {
 
 // Generate AI-based interview questions from resume
 app.post("/api/generate-questions", upload.single("resume"), async (req, res) => {
+
+  console.log("Body:", req.boby);
+  console.log("File:", req.file);
+  if (!req.file) {
+    console.log("❌ No file uploaded");
+    return res.status(400).json({ error: "No file uploaded" });
+  }
   try {
     // Validate file upload
-    if (!req.file) {
-      console.log("❌ No file uploaded");
-      return res.status(400).json({ error: "No file uploaded" });
-    }
 
     console.log("📄 Processing resume...");
 
+    // Parse PDF
+
+    // ✅ CASE 1: Resume text sent directly from frontend
+    /*if (req.body.resumeText) {
+      console.log("📄 Using resume text from frontend");
+      resumeText = req.body.resumeText;
+    }
+
+    // ✅ CASE 2: Resume file uploaded
+    else if (req.file) {
+      console.log("📄 Processing uploaded PDF...");
+
+      try {
+        const data = await pdfParse(req.file.buffer);
+        resumeText = data.text;
+      } catch (pdfError) {
+        console.error("❌ PDF parsing failed:", pdfError.message);
+        return res.status(400).json({ error: "Failed to parse PDF" });
+      }
+    }
+
+    // ❌ CASE 3: Nothing provided
+    else {
+      console.log("❌ No resume provided");
+      return res.status(400).json({ error: "No resume data provided" });
+    } */
     // Parse PDF
     let resumeText = "";
     try {
@@ -330,7 +362,6 @@ app.post("/api/generate-questions", upload.single("resume"), async (req, res) =>
       console.error("❌ PDF parsing failed:", pdfError.message);
       return res.status(400).json({ error: "Failed to parse PDF" });
     }
-
     // Clean text: limit to ~3000 chars, remove extra spaces, normalize line breaks
     resumeText = resumeText
       .substring(0, 3000)
@@ -349,7 +380,7 @@ app.post("/api/generate-questions", upload.single("resume"), async (req, res) =>
       "html", "css", "typescript", "angular", "vue", "aws", "docker", "kubernetes",
       "git", "linux", "rest api", "graphql", "mysql", "postgresql", "firebase"
     ];
-    
+
     const resumeLower = resumeText.toLowerCase();
     const foundSkills = skillKeywords.filter(skill => resumeLower.includes(skill));
     console.log("📌 Detected skills:", foundSkills.length > 0 ? foundSkills : "None detected");
@@ -437,7 +468,7 @@ RULES:
 
         // If there is a strong deprecation error, continue to next model.
         if (modelError?.code === "model_decommissioned" ||
-            (modelError?.error && modelError.error.code === "model_decommissioned")) {
+          (modelError?.error && modelError.error.code === "model_decommissioned")) {
           continue;
         }
 
@@ -459,10 +490,10 @@ RULES:
       const parsed = JSON.parse(responseText.trim());
       if (Array.isArray(parsed)) {
         // Validate each item has required fields
-        questions = parsed.filter(item => 
-          item && 
-          typeof item.question === 'string' && 
-          typeof item.ideal_answer === 'string' && 
+        questions = parsed.filter(item =>
+          item &&
+          typeof item.question === 'string' &&
+          typeof item.ideal_answer === 'string' &&
           typeof item.category === 'string' &&
           ['greeting', 'resume', 'technical', 'project', 'behavioral', 'company', 'closing'].includes(item.category)
         );

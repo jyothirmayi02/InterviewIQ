@@ -4,14 +4,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 export default function Results() {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  const { company, role, position, answers } = location.state || {};
+
+  const { company, role, position, answers, webcamFeedback } = location.state || {};
 
   const [score, setScore] = React.useState(null);
   const [feedback, setFeedback] = React.useState("");
   const [loading, setLoading] = React.useState(true);
   const [evaluations, setEvaluations] = React.useState([]);
-  
+
   React.useEffect(() => {
     const evaluate = async () => {
       try {
@@ -55,7 +55,7 @@ export default function Results() {
 
   // ✅ Simple overall score calculation (based on answer length)
   // (Later we will replace this with ML scoring)
-  
+
   return (
     <div style={styles.page}>
       <div style={styles.card}>
@@ -76,18 +76,23 @@ export default function Results() {
 
         {/* Overall Score */}
         <div style={styles.scoreBox}>
-  <h2 style={styles.scoreTitle}>Overall Score</h2>
+          <h2 style={styles.scoreTitle}>Overall Score</h2>
 
-  {loading ? (
-    <p>Evaluating your answers...</p>
-  ) : (
-    <>
-      <p style={styles.scoreValue}>{score}/10</p>
-      <p style={styles.feedback}>{feedback}</p>
-    </>
-  )}
-</div>
-
+          {loading ? (
+            <p>Evaluating your answers...</p>
+          ) : (
+            <>
+              <p style={styles.scoreValue}>{score}/10</p>
+              <p style={styles.feedback}>{feedback}</p>
+            </>
+          )}
+        </div>
+        <h3>WebCam Feedback</h3>
+        <ul>
+          {webcamFeedback?.map((f, i) => (
+            <li key={i}>{f}</li>
+          ))}
+        </ul>
         {/* Q&A Summary */}
         <h3 style={styles.sectionTitle}>Detailed Question Review</h3>
 
@@ -137,7 +142,7 @@ export default function Results() {
         {!loading && evaluations.length > 0 && (
           <div style={styles.analysisSection}>
             <div style={styles.strengthsCard}>
-              <h3 style={styles.analysisTitle}>💪 Strengths</h3>
+              <h3 style={styles.analysisTitle}>💪 Highlights</h3>
               <ul style={styles.analysisList}>
                 {evaluations
                   .filter(e => e.score >= 7)
@@ -148,22 +153,6 @@ export default function Results() {
                   ))}
                 {evaluations.filter(e => e.score >= 7).length === 0 && (
                   <li style={styles.analysisItem}>Keep practicing to build strengths!</li>
-                )}
-              </ul>
-            </div>
-
-            <div style={styles.weaknessesCard}>
-              <h3 style={styles.analysisTitle}>🎯 Areas for Improvement</h3>
-              <ul style={styles.analysisList}>
-                {evaluations
-                  .filter(e => e.score < 7)
-                  .map((e, i) => (
-                    <li key={i} style={styles.analysisItem}>
-                      Focus on: "{e.question.substring(0, 50)}..." ({e.feedback || "Review ideal answer"})
-                    </li>
-                  ))}
-                {evaluations.filter(e => e.score < 7).length === 0 && (
-                  <li style={styles.analysisItem}>Great job! No major weaknesses identified.</li>
                 )}
               </ul>
             </div>

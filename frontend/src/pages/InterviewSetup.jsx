@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 export default function InterviewSetup() {
@@ -6,13 +6,21 @@ export default function InterviewSetup() {
   const location = useLocation();
 
   // Get resume file from upload page (if coming from resume flow)
-  const { resumeFile } = location.state || {};
+  const { resumeFile: navResume } = location.state || {};
+  const [resumeFile, setResumeFile] = useState(navResume || null);
 
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [position, setPosition] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    const savedText = sessionStorage.getItem("resumeText");
+    if (savedText) {
+      setResumeFile(savedText);
+    }
+  }, []);
+  console.log("Resume:", resumeFile);
   const handleStart = async () => {
     if (!company || !role || !position) {
       alert("Please select Company, Role and Position ✅");
@@ -24,18 +32,23 @@ export default function InterviewSetup() {
     try {
       // If resume file exists, use AI-generated questions
       if (resumeFile) {
-        const formData = new FormData();
-        formData.append("resume", resumeFile);
-        formData.append("company", company);
-        formData.append("role", role);
-        formData.append("position", position);
 
-        const res = await fetch("http://localhost:5000/api/generate-questions", {
-          method: "POST",
-          body: formData,
-        });
+        // ✅ CASE 1: resumeText (STRING)
+
+          // ✅ CASE 2: file upload
+          const formData = new FormData();
+          formData.append("resume", resumeFile);
+          formData.append("company", company);
+          formData.append("role", role);
+          formData.append("position", position);
+
+          const res = await fetch("http://localhost:5000/api/generate-questions", {
+            method: "POST",
+            body: formData
+          });
 
         const data = await res.json();
+
         if (res.ok && data.questions) {
           navigate("/interview", {
             state: { company, role, position, questions: data.questions },
@@ -43,7 +56,8 @@ export default function InterviewSetup() {
         } else {
           throw new Error(data.error || "Failed to generate questions");
         }
-      } else {
+      }
+      else {
         // Otherwise use static questions
         navigate("/interview", {
           state: { company, role, position },
@@ -115,9 +129,9 @@ export default function InterviewSetup() {
           </select>
         </div>
 
-        <button 
-          style={{...styles.button, ...(loading ? styles.buttonDisabled : {})}} 
-          onClick={handleStart} 
+        <button
+          style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
+          onClick={handleStart}
           disabled={loading}
         >
           {loading ? "Generating Questions..." : "Start Mock Interview"}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
+import * as faceapi from "face-api.js";
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
 export default function Interview() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -12,8 +14,14 @@ export default function Interview() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const [answer, setAnswer] = useState("");
+  const [listening, setListening] = useState(false);
   const [allAnswers, setAllAnswers] = useState([]);
+  const [recognition, setRecognition] = useState(null);
+  const videoRef = React.useRef(null);
 
+  const [faceCount, setFaceCount] = useState(0);
+  const [noFaceCount, setNoFaceCount] = useState(0);
+  const [smileCount, setSmileCount] = useState(0);
   const normalizeQuestion = (item) => {
     if (!item) return null;
     if (typeof item === "string") {
@@ -25,6 +33,55 @@ export default function Interview() {
       category: item.category || "",
     };
   };
+
+  const startListening = () => {
+    if (!SpeechRecognition) {
+      alert("Speech Recognition not supported in this browser");
+      return;
+    }
+    if (listening) {
+      recognition.stop();
+      setListening(false);
+      return;
+    }
+  };
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.log("Speech not supported");
+      return;
+    }
+    const recog = new SpeechRecognition();
+
+    recog.lang = "en-US";
+    recog.continuous = true;
+    recog.interimResults = false;
+
+    recog.onresult = (event) => {
+      const transcript = event.results[event.results.length - 1][0].transcript;
+
+      // Append speech to existing text
+      setAnswer((prev) => prev + " " + transcript);
+    };
+
+
+
+    /*recognition.onend = () => {
+      setListening(false);
+      };*/
+    recog.onend = () => {
+      if (listening) {
+        recog.start(); // Restart recognition if it stopped unexpectedly
+      }
+    };
+    setRecognition(recog);
+    return () => {
+      recog.stop();
+    };
+  }, []);
+
 
   useEffect(() => {
     if (!company || !role || !position) {
@@ -57,6 +114,72 @@ export default function Interview() {
     fetchQuestions();
   }, [company, role, position, navigate, preloadedQuestions]);
 
+  const toggleListening = () => {
+    if (!recognition) return;
+
+    if (listening) {
+      recognition.stop();
+      setListening(false);
+    } else {
+      recognition.start();
+      setListening(true);
+    }
+  };
+  const startVideo = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play(); // IMPORTANT
+        };
+      }
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+    }
+  };
+  const loadModels = async () => {
+    const MODEL_URL = "/models";
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+  };
+
+  const startDetection = () => {
+    setInterval(async () => {
+      if (!videoRef.current || videoRef.current.readyState !== 4) return;
+
+      const detections = await faceapi
+        .detectAllFaces(
+          videoRef.current,
+          new faceapi.TinyFaceDetectorOptions()
+        )
+        .withFaceExpressions();
+
+      if (detections.length > 0) {
+        setFaceCount((prev) => prev + 1);
+
+        const expressions = detections[0].expressions;
+
+        if (expressions.happy > 0.5) {
+          setSmileCount((prev) => prev + 1);
+        }
+      } else {
+        setNoFaceCount((prev) => prev + 1);
+      }
+    }, 1000);
+  };
+  useEffect(() => {
+    const init = async () => {
+      await loadModels();
+      await startVideo();
+      setTimeout(() => {
+        startDetection();
+      }, 2000); // Start detection after 2 seconds to allow video to initialize
+    };
+    init();
+  }, []);
   const handleSubmitAnswer = () => {
     if (!answer.trim()) {
       alert("Please enter your answer ✅");
@@ -88,9 +211,44 @@ export default function Interview() {
 
     // Next question or finish
     if (currentIndex >= questions.length - 1) {
+      const totalFrames = faceCount + noFaceCount;
+      const facePresence = totalFrames > 0 ? (faceCount / totalFrames) * 100 : 0;
+      const smileRate = faceCount > 0 ? (smileCount / faceCount) * 100 : 0;
+
+      const feedback = [];
+      // 🎯 Eye contact
+      if (facePresence > 80) {
+        feedback.push("Excellent eye contact maintained throughout the interview");
+      } else if (facePresence > 50) {
+        feedback.push("Good eye contact, but can improve consistency");
+      } else {
+        feedback.push("Try to maintain better eye contact with the camera");
+      }
+
+      // 🎯 Confidence (based on presence)
+      if (facePresence > 70) {
+        feedback.push("Good confidence and engagement");
+      } else {
+        feedback.push("You seemed less engaged at times, stay focused");
+      }
+
+      // 🎯 Smile / expression
+      if (smileRate > 0.3) {
+        feedback.push("Great positive expressions and friendliness");
+      } else if (smileRate > 0.1) {
+        feedback.push("Occasional positive expressions, try to smile more");
+      } else {
+        feedback.push("Try to smile more to appear confident and approachable");
+      }
+
+      // 🎯 Final summary
+      if (feedback.length === 0) {
+        feedback.push("Excellent overall presence and confidence");
+      }
       navigate("/results", {
         state: {
           answers: updatedAnswers,
+          webcamFeedback: feedback,
         },
       });
     } else {
@@ -129,6 +287,17 @@ export default function Interview() {
           <p style={styles.questionText}>{questions[currentIndex]?.question || "(Question text unavailable)"}</p>
         </div>
 
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          style={{
+            width: "100%",
+            borderRadius: "12px",
+            marginBottom: "10px"
+          }}
+        />
+
         <textarea
           style={styles.textarea}
           placeholder="Type your answer here..."
@@ -136,6 +305,25 @@ export default function Interview() {
           onChange={(e) => setAnswer(e.target.value)}
         />
 
+        <button
+          style={{
+            ...styles.button,
+            background: listening ? "#dc2626" : "#16a34a",
+            marginBottom: "10px"
+          }}
+          onClick={toggleListening}
+        >
+          {listening ? "🎤 Stop Listening..." : "🎤 Start Speaking"}
+        </button>
+        <button
+          style={{
+            ...styles.backBtn,
+            marginTop: "0px"
+          }}
+          onClick={() => setAnswer("")}
+        >
+          Clear Answer
+        </button>
         <button style={styles.button} onClick={handleSubmitAnswer}>
           Submit & Next ➜
         </button>
