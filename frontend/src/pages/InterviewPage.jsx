@@ -99,11 +99,25 @@ export default function Interview() {
     // Otherwise fetch questions from backend
     const fetchQuestions = async () => {
       try {
+        const formData = new FormData();
+        formData.append("company", company);
+        formData.append("role", role);
+        formData.append("position", position);
+
         const res = await fetch(
-          `https://interviewiq-mz3m.onrender.com/api/questions?company=${company}&role=${role}&position=${position}`
+          "https://interviewiq-mz3m.onrender.com/api/generate-questions",
+          {
+            method: "POST",
+            body: formData,
+          }
         );
+
         const data = await res.json();
-        const normalized = (data.questions || []).map(normalizeQuestion).filter(Boolean);
+
+        const normalized = (data.questions || [])
+          .map(normalizeQuestion)
+          .filter(Boolean);
+
         setQuestions(normalized);
       } catch (error) {
         console.error("Error loading questions:", error);
@@ -324,8 +338,8 @@ export default function Interview() {
               <button
                 onClick={toggleListening}
                 className={`w-full py-3 rounded-xl text-white font-semibold ${listening
-                    ? "bg-red-500"
-                    : "bg-gradient-to-r from-purple-600 to-pink-500"
+                  ? "bg-red-500"
+                  : "bg-gradient-to-r from-purple-600 to-pink-500"
                   }`}
               >
                 {listening ? "Stop Speaking" : "Start Speaking"}
