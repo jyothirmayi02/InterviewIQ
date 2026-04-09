@@ -5,7 +5,6 @@ export default function InterviewSetup() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get resume file from upload page (if coming from resume flow)
   const { resumeFile: navResume } = location.state || {};
   const [resumeFile, setResumeFile] = useState(navResume || null);
 
@@ -20,7 +19,7 @@ export default function InterviewSetup() {
       setResumeFile(savedText);
     }
   }, []);
-  console.log("Resume:", resumeFile);
+
   const handleStart = async () => {
     if (!company || !role || !position) {
       alert("Please select Company, Role and Position ✅");
@@ -30,22 +29,17 @@ export default function InterviewSetup() {
     setLoading(true);
 
     try {
-      // If resume file exists, use AI-generated questions
       if (resumeFile) {
+        const formData = new FormData();
+        formData.append("resume", resumeFile);
+        formData.append("company", company);
+        formData.append("role", role);
+        formData.append("position", position);
 
-        // ✅ CASE 1: resumeText (STRING)
-
-          // ✅ CASE 2: file upload
-          const formData = new FormData();
-          formData.append("resume", resumeFile);
-          formData.append("company", company);
-          formData.append("role", role);
-          formData.append("position", position);
-
-          const res = await fetch("http://localhost:5000/api/generate-questions", {
-            method: "POST",
-            body: formData
-          });
+        const res = await fetch("http://localhost:5000/api/generate-questions", {
+          method: "POST",
+          body: formData
+        });
 
         const data = await res.json();
 
@@ -54,18 +48,15 @@ export default function InterviewSetup() {
             state: { company, role, position, questions: data.questions },
           });
         } else {
-          throw new Error(data.error || "Failed to generate questions");
+          throw new Error(data.error || "Failed");
         }
-      }
-      else {
-        // Otherwise use static questions
+      } else {
         navigate("/interview", {
           state: { company, role, position },
         });
       }
     } catch (error) {
-      console.error("Error:", error);
-      alert("Failed to generate questions. Using defaults instead.");
+      alert("Failed to generate questions. Using defaults.");
       navigate("/interview", {
         state: { company, role, position },
       });
@@ -75,162 +66,107 @@ export default function InterviewSetup() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Interview Setup</h1>
-        <p style={styles.subtitle}>
-          Select your target company, role and position level.
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center px-4">
 
-        {/* Company */}
-        <div style={styles.field}>
-          <label style={styles.label}>Company</label>
-          <select
-            style={styles.select}
-            value={company}
-            onChange={(e) => setCompany(e.target.value)}
-          >
-            <option value="">-- Select Company --</option>
-            <option value="Amazon">Amazon</option>
-            <option value="Infosys">Infosys</option>
-            <option value="TCS">TCS</option>
-            <option value="Google">Google</option>
-          </select>
-        </div>
+  <div className="bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-xl w-full max-w-3xl">
 
-        {/* Role */}
-        <div style={styles.field}>
-          <label style={styles.label}>Role</label>
-          <select
-            style={styles.select}
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="">-- Select Role --</option>
-            <option value="Frontend Developer">Frontend Developer</option>
-            <option value="Backend Developer">Backend Developer</option>
-            <option value="Full Stack Developer">Full Stack Developer</option>
-            <option value="Data Analyst">Data Analyst</option>
-          </select>
-        </div>
+    {/* Title */}
+    <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
+      Interview Setup
+    </h1>
 
-        {/* Position */}
-        <div style={styles.field}>
-          <label style={styles.label}>Position Level</label>
-          <select
-            style={styles.select}
-            value={position}
-            onChange={(e) => setPosition(e.target.value)}
-          >
-            <option value="">-- Select Position --</option>
-            <option value="Fresher">Fresher</option>
-            <option value="Intern">Intern</option>
-            <option value="Experienced">Experienced</option>
-          </select>
-        </div>
+    <p className="text-center text-gray-500 mb-8">
+      Configure your interview preferences and get personalized questions
+    </p>
 
-        <button
-          style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
-          onClick={handleStart}
-          disabled={loading}
+    {/* FORM GRID */}
+    <div className="grid md:grid-cols-2 gap-6">
+
+      {/* Company */}
+      <div>
+        <label className="block mb-1 font-medium text-gray-700">Company</label>
+        <select
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+          className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-400 outline-none"
         >
-          {loading ? "Generating Questions..." : "Start Mock Interview"}
-        </button>
-
-        <button style={styles.backBtn} onClick={() => navigate("/upload")}>
-          ⬅ Back
-        </button>
+          <option value="">Select Company</option>
+          <option>Google</option>
+          <option>Amazon</option>
+          <option>Microsoft</option>
+          <option>Infosys</option>
+          <option>TCS</option>
+          <option>Wipro</option>
+          <option>Accenture</option>
+          <option>Meta</option>
+          <option>Netflix</option>
+        </select>
       </div>
+
+      {/* Role */}
+      <div>
+        <label className="block mb-1 font-medium text-gray-700">Role</label>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-400 outline-none"
+        >
+          <option value="">Select Role</option>
+          <option>Frontend Developer</option>
+          <option>Backend Developer</option>
+          <option>Full Stack Developer</option>
+          <option>Data Analyst</option>
+          <option>Data Scientist</option>
+          <option>Machine Learning Engineer</option>
+          <option>DevOps Engineer</option>
+          <option>Software Engineer</option>
+        </select>
+      </div>
+
+      {/* Position */}
+      <div className="md:col-span-2">
+        <label className="block mb-1 font-medium text-gray-700">Position Level</label>
+        <select
+          value={position}
+          onChange={(e) => setPosition(e.target.value)}
+          className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-purple-400 outline-none"
+        >
+          <option value="">Select Position</option>
+          <option>Intern</option>
+          <option>Fresher / Entry Level</option>
+          <option>Junior (1-2 years)</option>
+          <option>Mid-Level (3-5 years)</option>
+          <option>Senior (5+ years)</option>
+        </select>
+      </div>
+
     </div>
+
+    {/* BUTTONS */}
+    <div className="mt-8 flex flex-col gap-3">
+
+      <button
+        onClick={handleStart}
+        disabled={loading}
+        className={`w-full py-3 rounded-xl text-white font-semibold transition ${
+          loading
+            ? "bg-gray-400 cursor-not-allowed"
+            : "bg-gradient-to-r from-purple-600 to-pink-500 hover:scale-105 shadow-md"
+        }`}
+      >
+        {loading ? "Generating Questions..." : "Start Mock Interview"}
+      </button>
+
+      <button
+        onClick={() => navigate("/upload")}
+        className="w-full py-3 rounded-xl border border-gray-300 hover:bg-gray-100 transition"
+      >
+        ← Back to Upload
+      </button>
+
+    </div>
+
+  </div>
+</div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100%",
-    background: "#f5f7fb",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "20px",
-    boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: "550px",
-    background: "#fff",
-    padding: "28px",
-    borderRadius: "18px",
-    boxShadow: "0px 10px 25px rgba(0,0,0,0.08)",
-    boxSizing: "border-box",
-  },
-
-  title: {
-    textAlign: "center",
-    fontSize: "28px",
-    marginBottom: "8px",
-    color: "#111827",
-  },
-
-  subtitle: {
-    textAlign: "center",
-    fontSize: "14px",
-    color: "#4b5563",
-    marginBottom: "20px",
-  },
-
-  field: {
-    marginBottom: "16px",
-  },
-
-  label: {
-    display: "block",
-    marginBottom: "6px",
-    fontWeight: "bold",
-    color: "#111827",
-    fontSize: "14px",
-  },
-
-  select: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    outline: "none",
-  },
-
-  button: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: "16px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    marginTop: "10px",
-    opacity: 1,
-  },
-
-  buttonDisabled: {
-    opacity: 0.6,
-    cursor: "not-allowed",
-  },
-
-  backBtn: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    color: "#111827",
-    fontSize: "15px",
-    cursor: "pointer",
-    marginTop: "12px",
-  },
-};

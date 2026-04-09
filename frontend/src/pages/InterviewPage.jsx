@@ -258,186 +258,146 @@ export default function Interview() {
 
   if (questions.length === 0) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <h2>Loading Interview Questions...</h2>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-white to-pink-50">
+        <div className="bg-white p-6 rounded-xl shadow-md">
+          <h2 className="text-lg font-semibold text-gray-700">
+            Loading Interview Questions...
+          </h2>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <h2 style={styles.heading}>Mock Interview</h2>
-          <p style={styles.progress}>
-            Question {currentIndex + 1} / {questions.length}
-          </p>
+    <div className="h-screen flex flex-col bg-gradient-to-br from-purple-50 via-white to-pink-50">
+
+      {/* 🔵 Navbar (Same as Home) */}
+      <nav className="flex justify-between items-center px-8 py-4 bg-white/70 backdrop-blur-md shadow-sm">
+
+        <h1 className="text-xl font-bold text-purple-600">
+          AI Interview Prep
+        </h1>
+
+        <div className="flex items-center gap-6">
+
+          {/* Progress */}
+          <span className="text-sm text-gray-600">
+            {currentIndex + 1} / {questions.length}
+          </span>
+
+          {/* Optional Exit */}
+          <button
+            onClick={() => navigate("/")}
+            className="text-gray-600 hover:text-black transition"
+          >
+            Exit
+          </button>
+
         </div>
 
-        <div style={styles.infoBar}>
-          <span><b>Company:</b> {company}</span>
-          <span><b>Role:</b> {role}</span>
-          <span><b>Level:</b> {position}</span>
+      </nav>
+
+      {/* MAIN CONTENT */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* LEFT SIDE */}
+        <div className="w-1/2 p-6 flex flex-col gap-4">
+
+          {/* INFO */}
+          <div className="bg-white p-4 rounded-xl shadow-md text-sm text-purple-600 flex flex-wrap gap-4">
+            <span><b>Company:</b> {company}</span>
+            <span><b>Role:</b> {role}</span>
+            <span><b>Level:</b> {position}</span>
+          </div>
+
+          {/* QUESTION */}
+          <div className="bg-white p-5 rounded-xl shadow-md flex-1 flex flex-col">
+
+            <p className="text-sm text-gray-400 mb-2">Question</p>
+
+            <h3 className="text-lg font-semibold text-gray-900">
+              {questions[currentIndex]?.question || "Loading..."}
+            </h3>
+
+            <div className="mt-auto flex flex-col gap-3">
+
+              <button
+                onClick={toggleListening}
+                className={`w-full py-3 rounded-xl text-white font-semibold ${listening
+                    ? "bg-red-500"
+                    : "bg-gradient-to-r from-purple-600 to-pink-500"
+                  }`}
+              >
+                {listening ? "Stop Speaking" : "Start Speaking"}
+              </button>
+
+              <button
+                onClick={() => setAnswer("")}
+                className="w-full py-3 rounded-xl border hover:bg-gray-100"
+              >
+                Clear Answer
+              </button>
+
+            </div>
+
+          </div>
+
         </div>
 
-        <div style={styles.questionBox}>
-          <p style={styles.questionLabel}>Question:</p>
-          <p style={styles.questionText}>{questions[currentIndex]?.question || "(Question text unavailable)"}</p>
+        {/* RIGHT SIDE (WEBCAM) */}
+        <div className="w-1/2 p-6 flex flex-col">
+
+          <div className="bg-white p-4 rounded-xl shadow-md flex flex-col h-full">
+
+            <p className="text-sm text-gray-400 mb-2">Live Camera</p>
+
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              className="rounded-xl w-full flex-1 object-cover"
+            />
+
+            <p className="text-xs text-gray-400 mt-2 text-center">
+              Maintain eye contact & confidence
+            </p>
+
+          </div>
+
         </div>
 
-        <video
-          ref={videoRef}
-          autoPlay
-          muted
-          style={{
-            width: "100%",
-            borderRadius: "12px",
-            marginBottom: "10px"
-          }}
-        />
+      </div>
+
+      {/* ANSWER SECTION (BOTTOM FIXED) */}
+      <div className="p-4 bg-white border-t">
 
         <textarea
-          style={styles.textarea}
           placeholder="Type your answer here..."
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
+          className="w-full h-24 p-4 border rounded-xl outline-none focus:ring-2 focus:ring-purple-400 resize-none"
         />
 
-        <button
-          style={{
-            ...styles.button,
-            background: listening ? "#dc2626" : "#16a34a",
-            marginBottom: "10px"
-          }}
-          onClick={toggleListening}
-        >
-          {listening ? "🎤 Stop Listening..." : "🎤 Start Speaking"}
-        </button>
-        <button
-          style={{
-            ...styles.backBtn,
-            marginTop: "0px"
-          }}
-          onClick={() => setAnswer("")}
-        >
-          Clear Answer
-        </button>
-        <button style={styles.button} onClick={handleSubmitAnswer}>
-          Submit & Next ➜
-        </button>
+        <div className="flex gap-3 mt-3">
 
-        <button style={styles.backBtn} onClick={() => navigate("/setup")}>
-          ⬅ Back to Setup
-        </button>
+          <button
+            onClick={handleSubmitAnswer}
+            className="flex-1 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-purple-600 to-pink-500 hover:scale-105 transition"
+          >
+            Submit & Next →
+          </button>
+
+          <button
+            onClick={() => navigate("/setup")}
+            className="px-6 py-3 rounded-xl border hover:bg-gray-100"
+          >
+            Back
+          </button>
+
+        </div>
+
       </div>
+
     </div>
   );
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100%",
-    background: "#f5f7fb",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "20px",
-    boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
-  },
-  card: {
-    width: "100%",
-    maxWidth: "750px",
-    background: "#fff",
-    padding: "28px",
-    borderRadius: "18px",
-    boxShadow: "0px 10px 25px rgba(0,0,0,0.08)",
-    boxSizing: "border-box",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "12px",
-    flexWrap: "wrap",
-    gap: "10px",
-  },
-  heading: {
-    margin: 0,
-    fontSize: "22px",
-    color: "#111827",
-  },
-  progress: {
-    margin: 0,
-    fontSize: "14px",
-    color: "#4b5563",
-  },
-  infoBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "8px",
-    flexWrap: "wrap",
-    background: "#eff6ff",
-    padding: "10px",
-    borderRadius: "12px",
-    fontSize: "13px",
-    color: "#1d4ed8",
-    marginBottom: "16px",
-  },
-  questionBox: {
-    padding: "16px",
-    borderRadius: "14px",
-    background: "#f9fafb",
-    marginBottom: "16px",
-  },
-  questionLabel: {
-    margin: 0,
-    fontSize: "13px",
-    color: "#6b7280",
-    marginBottom: "6px",
-  },
-  questionText: {
-    margin: 0,
-    fontSize: "16px",
-    fontWeight: "bold",
-    color: "#111827",
-    lineHeight: "1.5",
-  },
-  textarea: {
-    width: "100%",
-    height: "120px",
-    padding: "12px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    fontSize: "14px",
-    outline: "none",
-    resize: "none",
-    boxSizing: "border-box",
-    marginBottom: "16px",
-  },
-  button: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: "16px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-  backBtn: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "12px",
-    border: "1px solid #d1d5db",
-    background: "#fff",
-    color: "#111827",
-    fontSize: "15px",
-    cursor: "pointer",
-    marginTop: "12px",
-  },
-};

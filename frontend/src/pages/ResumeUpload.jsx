@@ -31,123 +31,64 @@ export default function ResumeUpload() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>Upload Resume</h1>
-        <p style={styles.subtitle}>
-          Upload your resume (PDF) to generate personalized interview questions.
-        </p>
+  <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 flex items-center justify-center px-4">
 
-        <label style={styles.uploadBox}>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            style={styles.hiddenInput}
-          />
+    <div className="bg-white/80 backdrop-blur-md p-8 rounded-2xl shadow-xl w-full max-w-lg text-center">
 
-          <div>
-            <p style={styles.uploadText}>
-              📄 Click here to choose your Resume PDF
-            </p>
+      {/* Title */}
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        Upload Your Resume
+      </h1>
 
-            {resumeFile && (
-              <p style={styles.fileName}>Selected: {resumeFile.name}</p>
-            )}
-          </div>
-        </label>
+      <p className="text-gray-500 mb-6">
+        Upload your resume (PDF) to generate personalized interview questions
+      </p>
 
-        <button onClick={handleContinue} style={styles.button}>
-          Continue
-        </button>
+      {/* Upload Box */}
+      <label className="block border-2 border-dashed border-purple-300 rounded-2xl p-8 cursor-pointer hover:border-purple-500 hover:bg-purple-50 transition">
 
-        <p style={styles.note}>
-          *Your resume will be used only for generating questions.
-        </p>
-      </div>
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        <div className="flex flex-col items-center gap-3">
+
+          <div className="text-4xl">📄</div>
+
+          <p className="font-semibold text-purple-600">
+            Click to upload your Resume
+          </p>
+
+          <p className="text-sm text-gray-400">
+            Only PDF format supported
+          </p>
+
+          {resumeFile && (
+            <div className="mt-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm">
+              ✅ {resumeFile.name}
+            </div>
+          )}
+
+        </div>
+      </label>
+
+      {/* Button */}
+      <button
+        onClick={handleContinue}
+        className="w-full mt-6 py-3 rounded-xl text-white font-semibold bg-gradient-to-r from-purple-600 to-pink-500 hover:scale-105 transition shadow-md"
+      >
+        Continue to Setup →
+      </button>
+
+      {/* Note */}
+      <p className="mt-4 text-xs text-gray-400">
+        Your resume is used only to generate interview questions
+      </p>
+
     </div>
-  );
+  </div>
+);
 }
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    width: "100%",
-    background: "#f5f7fb",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: "20px",
-    boxSizing: "border-box",
-    fontFamily: "Arial, sans-serif",
-  },
-
-  card: {
-    width: "100%",
-    maxWidth: "550px",
-    background: "#ffffff",
-    padding: "28px",
-    borderRadius: "18px",
-    boxShadow: "0px 10px 25px rgba(0,0,0,0.08)",
-    textAlign: "center",
-    boxSizing: "border-box",
-  },
-
-  title: {
-    fontSize: "28px",
-    color: "#111827",
-    marginBottom: "10px",
-  },
-
-  subtitle: {
-    fontSize: "15px",
-    color: "#4b5563",
-    marginBottom: "20px",
-    lineHeight: "1.5",
-  },
-
-  uploadBox: {
-    display: "block",
-    border: "2px dashed #93c5fd",
-    borderRadius: "14px",
-    padding: "20px",
-    cursor: "pointer",
-    background: "#eff6ff",
-    marginBottom: "18px",
-  },
-
-  uploadText: {
-    margin: 0,
-    fontSize: "15px",
-    fontWeight: "bold",
-    color: "#1d4ed8",
-  },
-
-  fileName: {
-    marginTop: "10px",
-    fontSize: "13px",
-    color: "#111827",
-  },
-
-  hiddenInput: {
-    display: "none",
-  },
-
-  button: {
-    width: "100%",
-    padding: "14px",
-    borderRadius: "12px",
-    border: "none",
-    background: "#2563eb",
-    color: "#fff",
-    fontSize: "16px",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-
-  note: {
-    marginTop: "14px",
-    fontSize: "12px",
-    color: "#6b7280",
-  },
-};
