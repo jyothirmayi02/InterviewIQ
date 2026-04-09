@@ -36,7 +36,7 @@ export default function InterviewSetup() {
         formData.append("role", role);
         formData.append("position", position);
 
-        const res = await fetch("http://localhost:5000/api/generate-questions", {
+        const res = await fetch("https://your-backend.onrender.com/api/generate-questions", {
           method: "POST",
           body: formData
         });
