@@ -100,7 +100,7 @@ export default function Interview() {
     const fetchQuestions = async () => {
       try {
         const res = await fetch(
-          `https://your-backend.onrender.com/api/questions?company=${company}&role=${role}&position=${position}`
+          `https://interviewiq-mz3m.onrender.com/api/questions?company=${company}&role=${role}&position=${position}`
         );
         const data = await res.json();
         const normalized = (data.questions || []).map(normalizeQuestion).filter(Boolean);

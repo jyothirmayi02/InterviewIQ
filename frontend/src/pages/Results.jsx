@@ -17,7 +17,7 @@ export default function Results() {
   React.useEffect(() => {
     const evaluate = async () => {
       try {
-        const res = await fetch("https://your-backend.onrender.com/api/evaluate", {
+        const res = await fetch("https://interviewiq-mz3m.onrender.com/api/evaluate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ answers }),
